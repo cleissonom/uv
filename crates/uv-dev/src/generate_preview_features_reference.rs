@@ -212,6 +212,13 @@ mod tests {
         environment. These conflicts can cause imports to depend on installation order, even when
         the packages have different distribution names.
 
+        ### `dynamic-version-scopes` {#dynamic-version-scopes}
+
+        When creating or validating a lockfile, uv rejects overrides and exclusions scoped to an
+        exact version of a local package whose dynamic version is omitted from the lockfile.
+        The version can change between builds, even if the scope does not match the current build.
+        Omit `version` from the scope or declare a static package version.
+
         ### `extra-build-dependencies` {#extra-build-dependencies}
 
         The [`extra-build-dependencies`](./projects/config.md#augmenting-build-dependencies) setting
