@@ -948,3 +948,22 @@ fn streamed_variant_metadata_requires_one_dist_info_directory() -> Result<()> {
     ");
     Ok(())
 }
+
+/// Inactive archives have no hash policy and must be skipped before name discovery.
+#[test]
+fn inactive_variant_unnamed_archive() -> Result<()> {
+    let context = uv_test::test_context!("3.12");
+    context.temp_dir.child("requirements.txt").write_str(
+        "./missing.tar.gz ; variant_label == 'gpu' \
+         --hash=sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+    )?;
+
+    uv_snapshot!(context.filters(), context.pip_install()
+        .args(["-r", "requirements.txt", "--overrides", "requirements.txt"]), @"
+    exit_code: 0 (success)
+    ----- stderr -----
+    Resolved in [TIME]
+    Checked in [TIME]
+    ");
+    Ok(())
+}

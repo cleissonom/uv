@@ -20,7 +20,7 @@ use uv_distribution_types::{
 };
 use uv_installer::SitePackages;
 use uv_normalize::PackageName;
-use uv_pep508::{MarkerEnvironment, RequirementOrigin};
+use uv_pep508::{MarkerEnvironment, RequirementOrigin, UnnamedRequirement};
 use uv_platform_tags::Tags;
 use uv_pypi_types::Conflicts;
 use uv_requirements::{
@@ -124,6 +124,15 @@ pub async fn resolve(
 ) -> Result<(ResolverOutput, HashStrategy), Error> {
     let start = std::time::Instant::now();
 
+    // Name discovery can build an archive. Skip the same inactive inputs that hash
+    // verification excludes before requesting their metadata.
+    let is_active = |requirement: &UnnamedRequirement<_>| {
+        requirement
+            .marker
+            .resolve_variants_false()
+            .evaluate_optional_environment(resolver_env.marker_environment(), &[])
+    };
+
     // Resolve the requirements from the provided sources.
     let requirements = {
         // Partition the requirements into named and unnamed requirements.
@@ -143,7 +152,7 @@ pub async fn resolve(
                     .with_recorder(recorder.clone()),
                 )
                 .with_reporter(Arc::new(ResolverReporter::from(printer)))
-                .resolve(unnamed.into_iter())
+                .resolve(unnamed.into_iter().filter(is_active))
                 .await?,
             );
         }
@@ -280,7 +289,7 @@ pub async fn resolve(
                     .with_recorder(recorder.clone()),
                 )
                 .with_reporter(Arc::new(ResolverReporter::from(printer)))
-                .resolve(unnamed.into_iter())
+                .resolve(unnamed.into_iter().filter(is_active))
                 .await?,
             );
         }
