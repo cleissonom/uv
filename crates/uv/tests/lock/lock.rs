@@ -49196,3 +49196,78 @@ fn lock_resolution_inputs_package_prerelease_constraint() -> Result<()> {
 
     Ok(())
 }
+
+/// A variant predicate must not extend an explicit index pin to other platforms.
+#[cfg(feature = "test-universal")]
+#[test]
+fn inactive_variant_index_pin() -> Result<()> {
+    let context = uv_test::test_context!("3.12");
+    let (filename, wheel) = WheelBuilder::new(&"dep".parse()?, &"1.0".parse()?).build();
+    context
+        .temp_dir
+        .child("default")
+        .child(filename)
+        .write_binary(&wheel)?;
+    let (filename, wheel) = WheelBuilder::new(&"dep".parse()?, &"2.0".parse()?).build();
+    context
+        .temp_dir
+        .child("linux")
+        .child(filename)
+        .write_binary(&wheel)?;
+
+    context
+        .temp_dir
+        .child("pyproject.toml")
+        .write_str(indoc! {r#"
+        [project]
+        name = "project"
+        version = "0.1.0"
+        requires-python = ">=3.12"
+        dependencies = ["dep; sys_platform == 'win32'"]
+
+        [tool.uv]
+        environments = ["sys_platform == 'linux'", "sys_platform == 'win32'"]
+
+        [tool.uv.workspace]
+        members = ["member"]
+
+        [[tool.uv.index]]
+        url = "default"
+        format = "flat"
+        default = true
+
+        [[tool.uv.index]]
+        name = "linux"
+        url = "linux"
+        format = "flat"
+        explicit = true
+    "#})?;
+    context
+        .temp_dir
+        .child("member/pyproject.toml")
+        .write_str(indoc! {r#"
+        [project]
+        name = "member"
+        version = "0.1.0"
+        requires-python = ">=3.12"
+        dependencies = ["dep; sys_platform == 'linux' or variant_label == 'gpu'"]
+
+        [tool.uv.sources]
+        dep = { index = "linux" }
+    "#})?;
+
+    uv_snapshot!(context.filters(), context.lock(), @"
+    exit_code: 0 (success)
+    ----- stderr -----
+    Resolved 4 packages in [TIME]
+    ");
+    uv_snapshot!(context.filters(), context.export().args([
+        "--frozen", "--all-packages", "--no-header", "--no-hashes", "--no-annotate"
+    ]), @"
+    exit_code: 0 (success)
+    ----- stdout -----
+    dep==1.0 ; sys_platform == 'win32'
+    dep==2.0 ; sys_platform == 'linux'
+    ");
+    Ok(())
+}
