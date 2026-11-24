@@ -995,6 +995,36 @@ fn inactive_unnamed_wheel_override() -> Result<()> {
     Ok(())
 }
 
+/// Overriding a dependency must not enable an unrequested extra, whether the variant
+/// is an alternative to the extra or an additional condition.
+#[test]
+fn override_preserves_extra_with_variant_marker() -> Result<()> {
+    let context = uv_test::test_context!("3.12");
+    let (filename, wheel) = WheelBuilder::new(&"parent".parse()?, &"1.0".parse()?)
+        .extras(&BTreeMap::from([("gpu".parse()?, Vec::new())]))
+        .requires(&[
+            "either; extra == 'gpu' or variant_label == 'gpu'".parse()?,
+            "both; extra == 'gpu' and variant_label == 'gpu'".parse()?,
+        ])
+        .build();
+    context.temp_dir.child(filename).write_binary(&wheel)?;
+    context
+        .temp_dir
+        .child("overrides.txt")
+        .write_str("either==2\nboth==2\n")?;
+
+    uv_snapshot!(context.filters(), context.pip_install()
+        .args(["--no-index", "--find-links", ".", "--overrides", "overrides.txt", "parent"]), @"
+    exit_code: 0 (success)
+    ----- stderr -----
+    Resolved 1 package in [TIME]
+    Prepared 1 package in [TIME]
+    Installed 1 package in [TIME]
+     + parent==1.0
+    ");
+    Ok(())
+}
+
 /// Ask for the name of an inactive override without printing its signed URL.
 #[test]
 fn inactive_unnamed_archive_override() -> Result<()> {

@@ -367,13 +367,17 @@ impl Overrides {
             return Either::Left(std::iter::once(Cow::Borrowed(requirement)));
         };
 
-        // Overrides replace environmental conditions, but optional dependencies must retain
-        // their extra conditions. Project away the environment rather than extracting one extra:
-        // valid metadata can contain alternatives and negative extra conditions.
-        // A false marker has no extra conditions left to retain; overrides can replace it too.
-        let extra_marker = if requirement.marker.is_false() {
+        // Overrides replace environmental conditions, but must retain extra conditions.
+        // Resolve variants first so `extra == 'a' or variant_label == 'gpu'` keeps the extra.
+        let marker = requirement.marker.resolve_variants_false();
+        let extra_marker = if !marker.is_false() {
+            marker.only_extras()
+        } else if requirement.marker.is_false() {
+            // An override can replace an already false marker, which has no extras left.
             MarkerTree::TRUE
         } else {
+            // For `extra == 'a' and variant_label == 'gpu'`, only the original marker
+            // still carries the extra condition.
             requirement.marker.only_extras()
         };
         if extra_marker.is_true() {
