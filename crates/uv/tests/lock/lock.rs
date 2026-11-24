@@ -4569,6 +4569,49 @@ fn lock_project_with_scoped_override_prerelease() -> Result<()> {
     Ok(())
 }
 
+/// A Linux-only scoped override must not opt a Windows dependency into pre-releases.
+#[cfg(feature = "test-universal")]
+#[test]
+fn lock_scoped_variant_override_prerelease() -> Result<()> {
+    let context = uv_test::test_context!("3.12").with_filter((
+        // This hint only appears when the host isn't Windows.
+        r"\nhint: The resolution failed for an environment that is not the current one[^\n]*\n",
+        "",
+    ));
+    let (filename, wheel) = WheelBuilder::new(&"parent".parse()?, &"1.0".parse()?).build();
+    context.temp_dir.child(filename).write_binary(&wheel)?;
+    let (filename, wheel) = WheelBuilder::new(&"dep".parse()?, &"2.0rc1".parse()?).build();
+    context.temp_dir.child(filename).write_binary(&wheel)?;
+    context
+        .temp_dir
+        .child("pyproject.toml")
+        .write_str(indoc! {r#"
+        [project]
+        name = "project"
+        version = "0.1.0"
+        requires-python = ">=3.12"
+        dependencies = ["parent", "dep; sys_platform == 'win32'"]
+
+        [tool.uv]
+        environments = ["sys_platform == 'linux'", "sys_platform == 'win32'"]
+
+        [[tool.uv.override-dependencies]]
+        package = { name = "parent" }
+        dependencies = ["dep==2.0rc1; sys_platform == 'linux' or variant_label == 'gpu'"]
+    "#})?;
+
+    uv_snapshot!(context.filters(), context.lock()
+        .args(["--no-index", "--find-links", ".", "--prerelease", "explicit"]), @"
+    exit_code: 1 (failure)
+    ----- stderr -----
+    error: No solution found when resolving dependencies for split (markers: sys_platform == 'win32')
+      cause: Because there are no versions of dep{sys_platform == 'win32'} and your project depends on dep{sys_platform == 'win32'}, we can conclude that your project's requirements are unsatisfiable.
+
+    hint: Pre-releases are available for `dep` in the requested range (e.g., 2.0rc1), but pre-releases weren't enabled (try: `--prerelease=allow`)
+    ");
+    Ok(())
+}
+
 /// Do not allow an excluded scoped override to opt a direct dependency into pre-releases.
 #[cfg(feature = "test-universal")]
 #[test]

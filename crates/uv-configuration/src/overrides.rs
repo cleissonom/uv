@@ -224,7 +224,8 @@ impl Overrides {
                             position
                         });
                     let overrides = &mut packages[position].overrides;
-                    for requirement in package.dependencies {
+                    for mut requirement in package.dependencies {
+                        requirement.marker = requirement.marker.resolve_variants_false();
                         overrides
                             .entry(requirement.name.clone())
                             .or_default()
