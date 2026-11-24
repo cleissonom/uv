@@ -63,7 +63,11 @@ impl<'a, Context: BuildContext> NamedRequirementsResolver<'a, Context> {
         self,
         requirements: impl Iterator<Item = UnnamedRequirement<VerbatimParsedUrl>>,
     ) -> Result<Vec<Requirement>, Error> {
-        self.resolve_with_build_policy(requirements, |_| true).await
+        // Without a target environment, only build sources that can apply in some fork.
+        self.resolve_with_build_policy(requirements, |requirement| {
+            !requirement.marker.resolve_variants_false().is_false()
+        })
+        .await
     }
 
     /// Infer names locally, fetching or building metadata only when permitted.
@@ -310,7 +314,7 @@ impl<'a, Context: BuildContext> NamedRequirementsResolver<'a, Context> {
                 archive.metadata.name.clone()
             } else {
                 if !allow_build {
-                    return Err(Error::UnnamedInactiveOverride);
+                    return Err(Error::UnnamedInactiveRequirement);
                 }
 
                 // Run the PEP 517 build process to extract metadata from the source distribution.

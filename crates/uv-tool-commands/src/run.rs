@@ -53,7 +53,7 @@ use uv_command_support::{
 
 use crate::common::{ToolPython, matching_packages, refine_interpreter};
 use crate::error::ToolError;
-use crate::requirements::resolve_names;
+use crate::requirements::{NameResolution, resolve_names};
 use crate::{Target, ToolRequest};
 use uv_environment_operations::{EnvironmentError, EnvironmentSpecification};
 use uv_install_operations::loggers::{DefaultInstallLogger, SummaryInstallLogger};
@@ -840,6 +840,7 @@ async fn get_or_create_environment(
         operations::read_constraints(build_constraints, client_builder).await?,
     );
 
+    let markers = resolution_markers(None, python_platform.as_ref(), &interpreter);
     let from = match request {
         ToolRequest::Python {
             executable: request_executable,
@@ -877,6 +878,7 @@ async fn get_or_create_environment(
 
                     let requirement = resolve_names(
                         vec![spec],
+                        NameResolution::Required(Some(&markers)),
                         &interpreter,
                         &settings.resolver,
                         &build_constraints,
@@ -1042,6 +1044,7 @@ async fn get_or_create_environment(
         requirements.extend(
             resolve_names(
                 spec.requirements.clone(),
+                NameResolution::Additional(Some(&markers)),
                 &interpreter,
                 &settings.resolver,
                 &build_constraints,
@@ -1070,6 +1073,7 @@ async fn get_or_create_environment(
     // Resolve the overrides.
     let overrides = resolve_names(
         spec.overrides.clone(),
+        NameResolution::Required(Some(&markers)),
         &interpreter,
         &settings.resolver,
         &build_constraints,
@@ -1129,8 +1133,7 @@ async fn get_or_create_environment(
                     )
                     .into_inner();
 
-                    // Determine the markers and tags to use for the resolution.
-                    let markers = resolution_markers(None, python_platform.as_ref(), &interpreter);
+                    // Determine the tags to use for the resolution.
                     let tags = resolution_tags(None, python_platform.as_ref(), &interpreter)?;
 
                     // Check if the installed packages meet the requirements.

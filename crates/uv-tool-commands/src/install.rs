@@ -45,7 +45,7 @@ use crate::common::{
     tool_environment_spec,
 };
 use crate::error::ToolLockError;
-use crate::requirements::resolve_names;
+use crate::requirements::{NameResolution, resolve_names};
 use crate::{Target, ToolRequest};
 use uv_command_support::{ExitStatus, Printer, UvError};
 use uv_environment_operations::{
@@ -171,6 +171,8 @@ pub async fn install(
     let cache = cache.with_refresh(refresh.clone());
 
     // Resolve the `--from` requirement.
+    let markers =
+        (!tool_locks).then(|| resolution_markers(None, python_platform.as_ref(), &interpreter));
     let requirement = match &request {
         // Ex) `ruff`
         ToolRequest::Package {
@@ -197,6 +199,7 @@ pub async fn install(
 
             let requirement = resolve_names(
                 requirements,
+                NameResolution::Required(markers.as_deref()),
                 &interpreter,
                 &settings.resolver,
                 &build_constraints,
@@ -390,6 +393,7 @@ pub async fn install(
         requirements.extend(
             resolve_names(
                 spec.requirements.clone(),
+                NameResolution::Additional(markers.as_deref()),
                 &interpreter,
                 &settings.resolver,
                 &build_constraints,
@@ -447,6 +451,7 @@ pub async fn install(
     // Resolve the overrides.
     let receipt_overrides = resolve_names(
         spec.overrides,
+        NameResolution::Required(markers.as_deref()),
         &interpreter,
         &settings.resolver,
         &build_constraints,

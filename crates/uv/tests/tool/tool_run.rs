@@ -1220,6 +1220,29 @@ fn tool_run_requirements_txt() {
     ");
 }
 
+/// An inactive unnamed tool dependency must not be built to discover its name.
+#[test]
+fn tool_run_inactive_unnamed_requirement() -> Result<()> {
+    let context = uv_test::test_context!("3.12").with_tool_dirs();
+    context
+        .temp_dir
+        .child("requirements.txt")
+        .write_str("./missing.tar.gz ; variant_label == 'gpu'\n")?;
+
+    uv_snapshot!(context.filters(), context.tool_run()
+        .args(["--no-index", "--with-requirements", "requirements.txt", "python", "--version"]), @"
+    exit_code: 0 (success)
+    ----- stdout -----
+    Python 3.12.[X]
+
+    ----- stderr -----
+    Resolved in [TIME]
+    Checked in [TIME]
+    ");
+
+    Ok(())
+}
+
 /// Ignore and warn when (e.g.) the `--index-url` argument is a provided `requirements.txt`.
 #[test]
 fn tool_run_requirements_txt_arguments() {

@@ -1038,7 +1038,7 @@ fn inactive_unnamed_archive_override() -> Result<()> {
         .args(["--no-index", "--overrides", "overrides.txt", "dep"]), @"
     exit_code: 1 (failure)
     ----- stderr -----
-    error: Cannot infer the package name for an inactive override without fetching or building metadata. Specify the name explicitly with `name @ <url>`
+    error: Cannot infer the package name for an inactive requirement without fetching or building metadata. Specify the name explicitly with `name @ <url>`
     ");
     Ok(())
 }

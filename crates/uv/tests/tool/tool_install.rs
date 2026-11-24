@@ -5088,6 +5088,25 @@ fn tool_install_constraints() -> Result<()> {
     Ok(())
 }
 
+/// An inactive override needs a name, but discovering it must not trigger a build.
+#[test]
+fn tool_install_inactive_unnamed_override() -> Result<()> {
+    let context = uv_test::test_context!("3.12").with_tool_dirs();
+    context
+        .temp_dir
+        .child("overrides.txt")
+        .write_str("./missing.tar.gz ; python_version < '3.12' or variant_label == 'gpu'\n")?;
+
+    uv_snapshot!(context.filters(), context.tool_install()
+        .args(["--no-index", "--overrides", "overrides.txt", "parent"]), @"
+    exit_code: 2 (failure)
+    ----- stderr -----
+    error: Cannot infer the package name for an inactive requirement without fetching or building metadata. Specify the name explicitly with `name @ <url>`
+    ");
+
+    Ok(())
+}
+
 /// Install a tool with `--overrides`.
 #[test]
 fn tool_install_overrides() -> Result<()> {

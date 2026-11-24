@@ -7,6 +7,7 @@ use uv_configuration::{Concurrency, Constraints, GitLfsSetting};
 use uv_dispatch::{BuildDispatch, SharedState};
 use uv_distribution::{DistributionDatabase, LoweredExtraBuildDependencies};
 use uv_distribution_types::{Requirement, UnresolvedRequirementSpecification};
+use uv_pep508::MarkerEnvironment;
 use uv_preview::Preview;
 use uv_python_interpreter::{Interpreter, PythonEnvironment};
 use uv_requirements::{NamedRequirementsResolver, partition_requirements};
@@ -19,9 +20,17 @@ use uv_workspace::WorkspaceCache;
 
 use crate::error::ToolError;
 
+pub(super) enum NameResolution<'a> {
+    /// The tool itself and overrides need a name even when their marker is inactive.
+    Required(Option<&'a MarkerEnvironment>),
+    /// Additional requirements that can never apply can be omitted.
+    Additional(Option<&'a MarkerEnvironment>),
+}
+
 /// Resolve any [`UnresolvedRequirementSpecification`] into a fully-qualified [`Requirement`].
 pub(super) async fn resolve_names(
     requirements: Vec<UnresolvedRequirementSpecification>,
+    resolution: NameResolution<'_>,
     interpreter: &Interpreter,
     settings: &ResolverSettings,
     build_constraints: &Constraints,
@@ -43,7 +52,17 @@ pub(super) async fn resolve_names(
             spec
         })
         .collect();
-    let (mut requirements, unnamed) = partition_requirements(requirements);
+    let (mut requirements, mut unnamed) = partition_requirements(requirements);
+    let markers = match resolution {
+        NameResolution::Required(markers) => markers,
+        NameResolution::Additional(markers) => {
+            // The resolver may retry with a different interpreter. Only discard requirements
+            // that are inactive in every environment.
+            unnamed
+                .retain(|requirement| requirement.marker.evaluate_optional_environment(None, &[]));
+            markers
+        }
+    };
 
     // Short-circuit if there are no unnamed requirements.
     if unnamed.is_empty() {
@@ -171,7 +190,11 @@ pub(super) async fn resolve_names(
             ),
         )
         .with_reporter(Arc::new(ResolverReporter::from(printer)))
-        .resolve(unnamed.into_iter())
+        .resolve_with_build_policy(unnamed.into_iter(), |requirement| {
+            requirement
+                .marker
+                .evaluate_optional_environment(markers, &[])
+        })
         .await?,
     );
 
