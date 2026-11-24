@@ -63,6 +63,15 @@ impl<'a, Context: BuildContext> NamedRequirementsResolver<'a, Context> {
         self,
         requirements: impl Iterator<Item = UnnamedRequirement<VerbatimParsedUrl>>,
     ) -> Result<Vec<Requirement>, Error> {
+        self.resolve_with_build_policy(requirements, |_| true).await
+    }
+
+    /// Infer names locally, fetching or building metadata only when permitted.
+    pub async fn resolve_with_build_policy(
+        self,
+        requirements: impl Iterator<Item = UnnamedRequirement<VerbatimParsedUrl>>,
+        can_build: impl Fn(&UnnamedRequirement<VerbatimParsedUrl>) -> bool,
+    ) -> Result<Vec<Requirement>, Error> {
         let Self {
             hasher,
             index,
@@ -70,7 +79,8 @@ impl<'a, Context: BuildContext> NamedRequirementsResolver<'a, Context> {
         } = self;
         requirements
             .map(async |requirement| {
-                Self::resolve_requirement(requirement, hasher, index, &database)
+                let allow_build = can_build(&requirement);
+                Self::resolve_requirement(requirement, hasher, index, &database, allow_build)
                     .await
                     .map(Requirement::from)
             })
@@ -85,6 +95,7 @@ impl<'a, Context: BuildContext> NamedRequirementsResolver<'a, Context> {
         hasher: &HashStrategy,
         index: &InMemoryIndex,
         database: &DistributionDatabase<'a, Context>,
+        allow_build: bool,
     ) -> Result<uv_pep508::Requirement<VerbatimParsedUrl>, Error> {
         // If the requirement is a wheel, extract the package name from the wheel filename.
         //
@@ -298,6 +309,10 @@ impl<'a, Context: BuildContext> NamedRequirementsResolver<'a, Context> {
                 // If the metadata is already in the index, return it.
                 archive.metadata.name.clone()
             } else {
+                if !allow_build {
+                    return Err(Error::UnnamedInactiveOverride(requirement.to_string()));
+                }
+
                 // Run the PEP 517 build process to extract metadata from the source distribution.
                 let hashes = hasher.metadata_policy_for_url(source.url());
                 let source = BuildableSource::Url(source);

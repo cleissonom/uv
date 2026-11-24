@@ -124,8 +124,7 @@ pub async fn resolve(
 ) -> Result<(ResolverOutput, HashStrategy), Error> {
     let start = std::time::Instant::now();
 
-    // Name discovery can build an archive. Skip the same inactive inputs that hash
-    // verification excludes before requesting their metadata.
+    // Hash verification excludes inactive inputs, so we must not build them to discover names.
     let is_active = |requirement: &UnnamedRequirement<_>| {
         requirement
             .marker
@@ -275,7 +274,8 @@ pub async fn resolve(
         // Partition the overrides into named and unnamed requirements.
         let (mut overrides, unnamed) = partition_requirements(overrides);
 
-        // Resolve any unnamed overrides.
+        // Even inactive overrides replace requirements of the same name. Dropping them would
+        // allow those requirements to resolve from the registry.
         if !unnamed.is_empty() {
             overrides.extend(
                 NamedRequirementsResolver::new(
@@ -289,7 +289,7 @@ pub async fn resolve(
                     .with_recorder(recorder.clone()),
                 )
                 .with_reporter(Arc::new(ResolverReporter::from(printer)))
-                .resolve(unnamed.into_iter().filter(is_active))
+                .resolve_with_build_policy(unnamed.into_iter(), is_active)
                 .await?,
             );
         }

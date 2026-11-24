@@ -959,11 +959,56 @@ fn inactive_variant_unnamed_archive() -> Result<()> {
     )?;
 
     uv_snapshot!(context.filters(), context.pip_install()
-        .args(["-r", "requirements.txt", "--overrides", "requirements.txt"]), @"
+        .args(["-r", "requirements.txt"]), @"
     exit_code: 0 (success)
     ----- stderr -----
     Resolved in [TIME]
     Checked in [TIME]
+    ");
+    Ok(())
+}
+
+/// An inactive wheel override still replaces transitive requests for the same package.
+#[test]
+fn inactive_unnamed_wheel_override() -> Result<()> {
+    let context = uv_test::test_context!("3.12");
+    let (filename, wheel) = WheelBuilder::new(&"parent".parse()?, &"1.0".parse()?)
+        .requires(&["dep".parse()?])
+        .build();
+    context.temp_dir.child(filename).write_binary(&wheel)?;
+    let (filename, wheel) = WheelBuilder::new(&"dep".parse()?, &"1.0".parse()?).build();
+    context.temp_dir.child(filename).write_binary(&wheel)?;
+    context
+        .temp_dir
+        .child("overrides.txt")
+        .write_str("./dep-2.0-py3-none-any.whl ; variant_label == 'gpu'\n")?;
+
+    uv_snapshot!(context.filters(), context.pip_install()
+        .args(["--no-index", "--find-links", ".", "--overrides", "overrides.txt", "parent"]), @"
+    exit_code: 0 (success)
+    ----- stderr -----
+    Resolved 1 package in [TIME]
+    Prepared 1 package in [TIME]
+    Installed 1 package in [TIME]
+     + parent==1.0
+    ");
+    Ok(())
+}
+
+/// An inactive override needs an explicit name when uv cannot infer it without a build.
+#[test]
+fn inactive_unnamed_archive_override() -> Result<()> {
+    let context = uv_test::test_context!("3.12");
+    context
+        .temp_dir
+        .child("overrides.txt")
+        .write_str("./missing.tar.gz ; variant_label == 'gpu'\n")?;
+
+    uv_snapshot!(context.filters(), context.pip_install()
+        .args(["--no-index", "--overrides", "overrides.txt", "dep"]), @"
+    exit_code: 1 (failure)
+    ----- stderr -----
+    error: Cannot infer the package name for an inactive override without fetching or building metadata. Specify the name explicitly, e.g., `name @ file://[TEMP_DIR]/missing.tar.gz ; variant_label == 'gpu'`
     ");
     Ok(())
 }

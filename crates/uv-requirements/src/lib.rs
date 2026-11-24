@@ -44,6 +44,12 @@ pub enum Error {
     #[error(transparent)]
     WheelFilename(#[from] uv_distribution_filename::WheelFilenameError),
 
+    #[error(
+        "Cannot infer the package name for an inactive override without fetching or building \
+         metadata. Specify the name explicitly, e.g., `name @ {0}`"
+    )]
+    UnnamedInactiveOverride(String),
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }
@@ -54,7 +60,10 @@ impl Error {
         match self {
             Self::Dist(_, _, error) | Self::Distribution(error) => error.is_user_failure(),
             Self::FlatIndex(error) => error.is_user_failure(),
-            Self::DistributionTypes(_) | Self::HashStrategy(_) | Self::WheelFilename(_) => true,
+            Self::DistributionTypes(_)
+            | Self::HashStrategy(_)
+            | Self::WheelFilename(_)
+            | Self::UnnamedInactiveOverride(_) => true,
             Self::Io(error) => matches!(
                 error.kind(),
                 std::io::ErrorKind::NotFound | std::io::ErrorKind::InvalidInput
