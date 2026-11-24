@@ -163,17 +163,7 @@ fn parse_marker_value<T: Pep508Url>(
                     }
                     _ => {}
                 })?;
-            if !cursor.allows_variant_markers()
-                && matches!(
-                    value,
-                    MarkerValue::MarkerEnvString(MarkerValueString::VariantLabel)
-                        | MarkerValue::MarkerEnvList(
-                            MarkerValueList::VariantNamespaces
-                                | MarkerValueList::VariantFeatures
-                                | MarkerValueList::VariantProperties
-                        )
-                )
-            {
+            if !cursor.allows_variant_markers() && value.is_variant() {
                 return Err(Pep508Error {
                     message: Pep508ErrorSource::VariantMarkerInEnvironment(key.to_string()),
                     start,
@@ -206,18 +196,27 @@ pub(crate) fn parse_marker_key_op_value<T: Pep508Url>(
     let r_value = parse_marker_value(cursor, reporter)?;
     let len = cursor.pos() - start;
 
+    // Ignoring an invalid variant predicate would make a guarded dependency unconditional.
+    let invalid_variant = |message: &str| Pep508Error {
+        message: Pep508ErrorSource::String(message.to_string()),
+        start,
+        len,
+        input: cursor.to_string(),
+    };
+    if (l_value.is_variant() && !matches!(r_value, MarkerValue::QuotedString(_)))
+        || (r_value.is_variant() && !matches!(l_value, MarkerValue::QuotedString(_)))
+    {
+        return Err(invalid_variant(
+            "Wheel variant markers must be compared with a quoted string",
+        ));
+    }
     let variant_label = MarkerValue::MarkerEnvString(MarkerValueString::VariantLabel);
     if operator == MarkerOperator::TildeEqual
         && (l_value == variant_label || r_value == variant_label)
     {
-        return Err(Pep508Error {
-            message: Pep508ErrorSource::String(
-                "The operator ~= is not supported with the marker variant_label".to_string(),
-            ),
-            start,
-            len,
-            input: cursor.to_string(),
-        });
+        return Err(invalid_variant(
+            "The operator ~= is not supported with the marker variant_label",
+        ));
     }
 
     // Convert a `<marker_value> <marker_op> <marker_value>` expression into its

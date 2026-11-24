@@ -174,6 +174,20 @@ pub(crate) enum MarkerValue {
     QuotedString(ArcStr),
 }
 
+impl MarkerValue {
+    pub(super) fn is_variant(&self) -> bool {
+        matches!(
+            self,
+            Self::MarkerEnvString(MarkerValueString::VariantLabel)
+                | Self::MarkerEnvList(
+                    MarkerValueList::VariantNamespaces
+                        | MarkerValueList::VariantFeatures
+                        | MarkerValueList::VariantProperties
+                )
+        )
+    }
+}
+
 impl FromStr for MarkerValue {
     type Err = String;
 
@@ -2919,20 +2933,6 @@ mod test {
     }
 
     #[test]
-    fn variant_label_rejects_compatible_release() {
-        assert_snapshot!(parse_err("variant_label ~= '12.0'"), @"
-        The operator ~= is not supported with the marker variant_label
-        variant_label ~= '12.0'
-        ^^^^^^^^^^^^^^^^^^^^^^^
-        ");
-        assert_snapshot!(parse_err("'12.0' ~= variant_label"), @"
-        The operator ~= is not supported with the marker variant_label
-        '12.0' ~= variant_label
-        ^^^^^^^^^^^^^^^^^^^^^^^
-        ");
-    }
-
-    #[test]
     fn variant_markers_require_a_dependency_specifier() {
         assert!(MarkerTree::parse_environment("'nvidia' in variant_namespaces").is_err());
         assert!(
@@ -2941,6 +2941,10 @@ mod test {
         );
         assert!(MarkerTree::from_str("'nvidia' == variant_namespaces").is_err());
         assert!(MarkerTree::from_str("variant_namespaces in 'nvidia'").is_err());
+        assert!(MarkerTree::from_str("variant_label ~= '12.0'").is_err());
+        assert!(MarkerTree::from_str("'12.0' ~= variant_label").is_err());
+        assert!(MarkerTree::from_str("platform_machine in variant_namespaces").is_err());
+        assert!(MarkerTree::from_str("variant_label == sys_platform").is_err());
     }
 
     #[test]
