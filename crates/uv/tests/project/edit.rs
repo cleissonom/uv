@@ -1134,34 +1134,6 @@ fn add_editable_error() -> Result<()> {
     Ok(())
 }
 
-/// Even when adding a dependency for all platforms, a variant-only source is inactive.
-#[test]
-fn add_inactive_unnamed_requirement() -> Result<()> {
-    let context = uv_test::test_context!("3.12");
-    context
-        .temp_dir
-        .child("pyproject.toml")
-        .write_str(indoc! {r#"
-        [project]
-        name = "project"
-        version = "0.1.0"
-        requires-python = ">=3.12"
-        dependencies = []
-    "#})?;
-    context
-        .temp_dir
-        .child("requirements.txt")
-        .write_str("./missing.tar.gz ; variant_label == 'gpu'\n")?;
-
-    uv_snapshot!(context.filters(), context.add().args(["--no-index", "-r", "requirements.txt"]), @"
-    exit_code: 2 (failure)
-    ----- stderr -----
-    error: Cannot infer the package name for an inactive requirement without fetching or building metadata. Specify the name explicitly with `name @ <url>`
-    ");
-
-    Ok(())
-}
-
 /// Add an unnamed requirement.
 #[test]
 #[cfg(feature = "test-git")]

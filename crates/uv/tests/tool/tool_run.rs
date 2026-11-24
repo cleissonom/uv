@@ -1183,13 +1183,14 @@ fn tool_run_git_lfs() {
 
 /// Read requirements from a `requirements.txt` file.
 #[test]
-fn tool_run_requirements_txt() {
+fn tool_run_requirements_txt() -> Result<()> {
     let context = uv_test::test_context!("3.12")
         .with_filtered_counts()
         .with_tool_dirs();
 
     let requirements_txt = context.temp_dir.child("requirements.txt");
-    requirements_txt.write_str("iniconfig").unwrap();
+    // Skip the inactive archive before trying to build it to discover its name.
+    requirements_txt.write_str("iniconfig\n./missing.tar.gz ; variant_label == 'gpu'\n")?;
 
     uv_snapshot!(context.filters(), context.tool_run()
         .arg("--with-requirements")
@@ -1217,27 +1218,6 @@ fn tool_run_requirements_txt() {
      + markupsafe==2.1.5
      + typing-extensions==4.10.0
      + werkzeug==3.0.1
-    ");
-}
-
-/// An inactive unnamed tool dependency must not be built to discover its name.
-#[test]
-fn tool_run_inactive_unnamed_requirement() -> Result<()> {
-    let context = uv_test::test_context!("3.12").with_tool_dirs();
-    context
-        .temp_dir
-        .child("requirements.txt")
-        .write_str("./missing.tar.gz ; variant_label == 'gpu'\n")?;
-
-    uv_snapshot!(context.filters(), context.tool_run()
-        .args(["--no-index", "--with-requirements", "requirements.txt", "python", "--version"]), @"
-    exit_code: 0 (success)
-    ----- stdout -----
-    Python 3.12.[X]
-
-    ----- stderr -----
-    Resolved in [TIME]
-    Checked in [TIME]
     ");
 
     Ok(())
