@@ -2919,6 +2919,20 @@ mod test {
     }
 
     #[test]
+    fn variant_label_rejects_compatible_release() {
+        assert_snapshot!(parse_err("variant_label ~= '12.0'"), @"
+        The operator ~= is not supported with the marker variant_label
+        variant_label ~= '12.0'
+        ^^^^^^^^^^^^^^^^^^^^^^^
+        ");
+        assert_snapshot!(parse_err("'12.0' ~= variant_label"), @"
+        The operator ~= is not supported with the marker variant_label
+        '12.0' ~= variant_label
+        ^^^^^^^^^^^^^^^^^^^^^^^
+        ");
+    }
+
+    #[test]
     fn variant_markers_require_a_dependency_specifier() {
         assert!(MarkerTree::parse_environment("'nvidia' in variant_namespaces").is_err());
         assert!(

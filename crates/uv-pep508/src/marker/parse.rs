@@ -206,6 +206,20 @@ pub(crate) fn parse_marker_key_op_value<T: Pep508Url>(
     let r_value = parse_marker_value(cursor, reporter)?;
     let len = cursor.pos() - start;
 
+    let variant_label = MarkerValue::MarkerEnvString(MarkerValueString::VariantLabel);
+    if operator == MarkerOperator::TildeEqual
+        && (l_value == variant_label || r_value == variant_label)
+    {
+        return Err(Pep508Error {
+            message: Pep508ErrorSource::String(
+                "The operator ~= is not supported with the marker variant_label".to_string(),
+            ),
+            start,
+            len,
+            input: cursor.to_string(),
+        });
+    }
+
     // Convert a `<marker_value> <marker_op> <marker_value>` expression into its
     // typed equivalent.
     let expr = match l_value {
