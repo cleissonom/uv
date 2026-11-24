@@ -59,9 +59,9 @@ impl Preference {
             return Ok(None);
         }
 
-        // Discard pins disabled by variant markers even during universal resolution.
+        // Universal resolution skips environment checks, but a false marker can never apply.
         let marker = requirement.marker.resolve_variants_false();
-        if marker != requirement.marker && marker.is_false() {
+        if marker.is_false() {
             return Ok(None);
         }
 
