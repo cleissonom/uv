@@ -469,9 +469,28 @@ impl<'lock, 'settings> VersionChecker<'lock, 'settings> {
                     reachability.get(&(other_index, DependencyContext::Production))
                     && self.is_reachable(first_marker.and(other_marker))
                 {
+                    let label = |package: &Package| {
+                        let url = match &package.id.source {
+                            Source::Registry(super::RegistrySource::Url(url))
+                            | Source::Direct(url, _)
+                            | Source::Git(url, _) => url,
+                            Source::Registry(super::RegistrySource::Path(_))
+                            | Source::Path(_)
+                            | Source::Directory(_)
+                            | Source::Editable(_)
+                            | Source::Virtual(_) => return package.id.to_string(),
+                        };
+                        let name = super::package_label(package.name(), package.version());
+                        let kind = package.id.source.name();
+                        let Ok(mut url) = url.to_url() else {
+                            return format!("{name} @ {kind}");
+                        };
+                        url.set_query(None);
+                        format!("{name} @ {kind}+{url}")
+                    };
                     return Some(LockSatisfactionError::ConflictingDependencySelections(
-                        first.id.to_string(),
-                        other.id.to_string(),
+                        label(first),
+                        label(other),
                     ));
                 }
             }
