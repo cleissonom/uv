@@ -310,7 +310,7 @@ impl<'a, Context: BuildContext> NamedRequirementsResolver<'a, Context> {
                 archive.metadata.name.clone()
             } else {
                 if !allow_build {
-                    return Err(Error::UnnamedInactiveOverride(requirement.to_string()));
+                    return Err(Error::UnnamedInactiveOverride);
                 }
 
                 // Run the PEP 517 build process to extract metadata from the source distribution.

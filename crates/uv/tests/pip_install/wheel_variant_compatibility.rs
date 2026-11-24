@@ -995,20 +995,20 @@ fn inactive_unnamed_wheel_override() -> Result<()> {
     Ok(())
 }
 
-/// An inactive override needs an explicit name when uv cannot infer it without a build.
+/// Ask for the name of an inactive override without printing its signed URL.
 #[test]
 fn inactive_unnamed_archive_override() -> Result<()> {
     let context = uv_test::test_context!("3.12");
-    context
-        .temp_dir
-        .child("overrides.txt")
-        .write_str("./missing.tar.gz ; variant_label == 'gpu'\n")?;
+    context.temp_dir.child("overrides.txt").write_str(
+        "https://example.com/archive.tar.gz?X-Goog-Signature=secret \
+         ; variant_label == 'gpu'\n",
+    )?;
 
     uv_snapshot!(context.filters(), context.pip_install()
         .args(["--no-index", "--overrides", "overrides.txt", "dep"]), @"
     exit_code: 1 (failure)
     ----- stderr -----
-    error: Cannot infer the package name for an inactive override without fetching or building metadata. Specify the name explicitly, e.g., `name @ file://[TEMP_DIR]/missing.tar.gz ; variant_label == 'gpu'`
+    error: Cannot infer the package name for an inactive override without fetching or building metadata. Specify the name explicitly with `name @ <url>`
     ");
     Ok(())
 }

@@ -46,9 +46,9 @@ pub enum Error {
 
     #[error(
         "Cannot infer the package name for an inactive override without fetching or building \
-         metadata. Specify the name explicitly, e.g., `name @ {0}`"
+         metadata. Specify the name explicitly with `name @ <url>`"
     )]
-    UnnamedInactiveOverride(String),
+    UnnamedInactiveOverride,
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
@@ -63,7 +63,7 @@ impl Error {
             Self::DistributionTypes(_)
             | Self::HashStrategy(_)
             | Self::WheelFilename(_)
-            | Self::UnnamedInactiveOverride(_) => true,
+            | Self::UnnamedInactiveOverride => true,
             Self::Io(error) => matches!(
                 error.kind(),
                 std::io::ErrorKind::NotFound | std::io::ErrorKind::InvalidInput
